@@ -121,4 +121,4 @@
 ## stage-2
 
 - [Документация на wiki](./wiki)
-- [Псевдокод](./disassemple.c)
+- [Псевдокод](./disassembly.c)
