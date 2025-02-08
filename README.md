@@ -1,4 +1,5 @@
 <div style="text-align: justify;">
+
 # ws25-bootstrap
 
 ## Мотивация
