@@ -22,38 +22,38 @@ typedef struct {
 typedef struct { int32_t global_file_index; int32_t current_offset; } process_descriptor_files_t;
 
 typedef struct {
-    ptr_t process_address;
-    ptr_t brk;
-    ptr_t saved_stack_pointer_first;
-    ptr_t saved_stack_pointer;
-    int32_t forked;
-    ptr_t saved_brk;
-    int32_t child_exit_code;
-    ptr_t saved_process_memory;
-    int32_t process_memory_length;
-    ptr_t saved_process_stack;
-    int32_t process_stack_length;
-    char unused[212];
-    char current_directory[0x100];
-    process_descriptor_files_t open_files[448];
+    ptr_t                       process_address;
+    ptr_t                       brk;
+    ptr_t                       saved_stack_pointer_first;
+    ptr_t                       saved_stack_pointer;
+    int32_t                     forked;
+    ptr_t                       saved_brk;
+    int32_t                     child_exit_code;
+    ptr_t                       saved_process_memory;
+    int32_t                     process_memory_length;
+    ptr_t                       saved_process_stack;
+    int32_t                     process_stack_length;
+    char                        unused[212];
+    char                        current_directory[0x100];
+    process_descriptor_files_t  open_files[448];
 } process_descriptor_t;
 
 
 typedef struct {
     unsigned char   e_ident[16];
-    int16_t      e_type;
-    int16_t      e_machine;
-    int32_t      e_version;
-    ptr_t        e_entry;
-    int32_t      e_phoff;
-    int32_t      e_shoff;
-    int32_t      e_flags;
-    int16_t      e_ehsize;
-    int16_t      e_phentsize;
-    int16_t      e_phnum;
-    int16_t      e_shentsize;
-    int16_t      e_shnum;
-    int16_t      e_shstrndx;
+    int16_t         e_type;
+    int16_t         e_machine;
+    int32_t         e_version;
+    ptr_t           e_entry;
+    int32_t         e_phoff;
+    int32_t         e_shoff;
+    int32_t         e_flags;
+    int16_t         e_ehsize;
+    int16_t         e_phentsize;
+    int16_t         e_phnum;
+    int16_t         e_shentsize;
+    int16_t         e_shnum;
+    int16_t         e_shstrndx;
 } elf32_elf_hdr_t;
 
 typedef struct {
@@ -242,6 +242,7 @@ int32_t find_file(ptr_t filename) {
         if (strcmp(file_names[filenum], filename) == 0) {
             return filenum;
         }
+        filenum--;
     }
     return -1;      //NOT FOUND
 }
@@ -400,12 +401,6 @@ void handle_syscall_execve(ptr_t program_name, ptr_t *argv, ptr_t *env) {
     if (proc_num == 0) {
         process_descriptor_t *pproc_descriptor = &pproc_descriptors[1];
         //:TODO: save esp to `pproc_descriptor->saved_stack_pointer_first`
-    } else {
-        process_descriptor_t *pproc_descriptor = &pproc_descriptors[proc_num];
-        if (pproc_descriptor->forked) {
-            pproc_descriptor->forked = 0;
-            proc_num++;
-        }
     }
 
     ptr_t save_process_address = next_save_process_address;
@@ -427,7 +422,7 @@ void handle_syscall_execve(ptr_t program_name, ptr_t *argv, ptr_t *env) {
 
     int32_t argc2 = argc;
     
-    while(argc2--) {
+    while (argc2--) {
         // :TODO: push `save_process_address` to stack
         argv--;
         memcpy(save_process_address, *argv, 0x100);
@@ -453,14 +448,15 @@ void handle_syscall_execve(ptr_t program_name, ptr_t *argv, ptr_t *env) {
 
     ptr_t last_seg;
     while (prg_hdr_cnt--) {
-        last_seg = pfile_descriptor->file_addr + prghdr->p_offset;
-        memcpy(last_seg, prghdr->p_vaddr, prghdr->p_filesz);
+        memcpy(prghdr->p_vaddr, pfile_descriptor->file_addr + prghdr->p_offset, prghdr->p_filesz);
+        last_seg = prghdr->p_vaddr + prghdr->p_filesz;
         prghdr++;
     }
 
-    if (pproc_descriptors[proc_num].forked) {
+    if (proc_num == 0 || pproc_descriptors[proc_num].forked) {
         proc_num++;
         next_process_num++;
+        pproc_descriptors[proc_num].forked = 0;
     }
 
     process_descriptor_t *pproc_descriptor = &pproc_descriptors[proc_num];
@@ -503,15 +499,15 @@ int32_t handle_syscall_chdir(ptr_t dir) {
 //TODO: reread and validate
 int32_t handle_syscall_exit(int32_t exitcode) {
     next_process_num--;
-    int32_t par_num = next_process_num - 1;
+    int32_t proc_num = next_process_num - 1;
     
-    if (par_num == 0) {
+    if (proc_num == 0) {
         // :TODO: restore SP from `pproc_descriptors[1].saved_stack_pointer_first`
         // :TODO: restore registers from stack
         return 0;
     }
 
-    process_descriptor_t *pproc_descriptor = &pproc_descriptors[par_num];
+    process_descriptor_t *pproc_descriptor = &pproc_descriptors[proc_num];
     pproc_descriptor->child_exit_code = exitcode;
     memcpy(pproc_descriptor->process_address, pproc_descriptor->saved_process_memory, pproc_descriptor->process_memory_length);
     next_save_process_address = pproc_descriptor->saved_process_stack;
@@ -522,7 +518,7 @@ int32_t handle_syscall_exit(int32_t exitcode) {
     return 1;
 }
 
-int32_t handle_syscall_waitpid(int32_t *status) {
+int32_t handle_syscall_waitpid(int32_t pid, int32_t *status, int32_t options) {
     int32_t proc_num = next_process_num - 1;
     process_descriptor_t *pproc_descriptor = &pproc_descriptors[proc_num];
     *status = pproc_descriptor->child_exit_code << 8;
@@ -571,7 +567,7 @@ ptr_t handle_syscall_getcwd(ptr_t buf, int32_t length) {
     return buf;
 }
 
-int32_t wait4(int32_t pid, ptr_t wstatus, int32_t options, ptr_t rusage) {
+int32_t handle_syscall_wait4(int32_t pid, ptr_t wstatus, int32_t options, ptr_t rusage) {
     *wstatus = 0;
     return 0;
 }
