@@ -25,91 +25,61 @@
   - [x] Задокументировать основные особенности builder-hex0-stage2
   - [x] Выявить потенциальные точки улучшения системы
 
-## Сборка проекта
+## Сборка прототипа stage1
 
-### Makefile 
-Пишет Волк
+Если префикс вашего cross toolchain отличен от `riscv64-elf-` (или сборка проходит нативно на RISC-V) то выставите переменную префикса:
+```
+$ export CROSS_COMPILE=<your-prefix->
+```
 
-### Сборка stage-1 из исходного кода
-Пишет Волк
+### Образ SD карты для Lichee Pi 4A
 
-1. Установите требуемые зависимости
+```console
+$ make image_lpi4a
+```
 
-    ```bash
-    sudo apt install gcc-riscv64-unknown-elf
-    ```
+###  Образ для QEMU virt
 
-    Для запуска на qemu дополнительно установите `qemu-system-riscv64`:
+```console
+$ make image_qemu
+```
 
-    ```bash
-    sudo apt install qemu-system-riscv64
-    ```
+### Сборка руками
 
-2. Соберите объектный файл
+1. Соберём ELF файл программы
+```console
+$ <preifx>-gcc -march=rv64gc\
+			   -nostdlib\
+			   -ffreestanding\
+			   -Ttext 0\
+			   ./src/stage1.S -o stage1.elf
+```
+2. Скопируем .text секцию в чистый бинарный файл
+```console
+$ <prefix>-objcopy -O binary stage1.elf stage1.bin
+```
+3. Сконкатенируем `stage1.bin` и код полезной нагрузки (`payload_lpi4a.hex0` или `payload_qemu.hex0`)
 
-    ```bash
-    riscv64-unknown-elf-as ./src/stage1.s -o stage1.o
-    ```
+```console
+$ cat stage1.bin <payload>.hex0 > image_<platform>.bin
+```
 
-3. Сгенерируйте elf-файл
+## Запуск прототипа stage1
 
-    ```bash
-    riscv64-unknown-elf-ld -Ttext 0 stage1.o -o stage1.elf
-    ```
+### На Lichee Pi 4A
 
-4. Сгенерируйте бинарный файл
+1. Выставите DIP-переключатель выбора режима загрузки в режим загрузки с SD карты
+2. Загрузите образ на SD карту (она должна быть заполнена нулями хотя бы на 1.5 МБ)
+```console
+$ dd if=image_lpi4a.bin of=<SD Card>
+```
+3. Вставьте SD карту в слот и включите питание платы
 
-    ```bash
-    riscv64-unknown-elf-objcopy -O binary stage1.elf stage1.bin
-    ```
+### На QEMU RISC-V virt
 
-5. Запустите бинарный файл
-
-    1. Для запуска на реальном устройстве скопируйте бинарный файл на диск (в примере `/dev/sda`)
-
-        ```bash
-        dd if=stage1.bin of=/dev/sda
-        ```
-
-    2. Для запуска на qemu:
-
-        ```bash
-        qemu-system-riscv64 //TBD
-        ```
-
-### Запуск stage-1 из hex0
-Пишет Волк
-
-1. Установите требуемые зависимости
-
-    ```bash
-    sudo apt install xxd
-    ```
-
-    Для запуска на qemu установите `qemu-system-riscv64`:
-
-    ```bash
-    sudo apt install qemu-system-riscv64
-    ```
-
-2. Получите из hex0 бинарный файл
-
-    ```bash
-    sed 's/[;#].*$//g' stage1.hex0 | xxd -r -p > stage1.bin
-    ```
-
-3. Запустите бинарный файл
-
-    1. Для запуска на реальном устройстве скопируйте бинарный файл на диск (в примере `/dev/sda`)
-
-        ```bash
-        dd if=stage1.bin of=/dev/sda
-        ```
-
-    2. Для запуска на qemu:
-
-        ```bash
-        qemu-system-riscv64 //TBD
+```console
+$ qemu-system-riscv64 -M virt -bios image_qemu.bin
+```
 
 ## Документация проекта
 
