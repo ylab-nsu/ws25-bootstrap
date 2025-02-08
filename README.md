@@ -48,7 +48,7 @@ $ make image_qemu
 
 1. Соберём ELF файл программы
 ```console
-$ <preifx>-gcc -march=rv64gc\
+$ <prefix>-gcc -march=rv64gc\
 			   -nostdlib\
 			   -ffreestanding\
 			   -Ttext 0\
@@ -83,5 +83,5 @@ $ qemu-system-riscv64 -M virt -bios image_qemu.bin
 
 ## Документация проекта
 
-- [Документация на wiki](./wiki)
-- [Псевдокод](./disassembly.c)
+- [Документация на wiki](https://github.com/ylab-nsu/ws25-bootstrap/wiki)
+- [Псевдокод](https://github.com/ylab-nsu/ws25-bootstrap/blob/dev/builder-hex0-stage2/disassembly.c)
